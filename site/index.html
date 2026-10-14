@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Порівняй локальну генерацію мовних моделей на різних комп’ютерах. Тест у браузері, без встановлення програм.">
+  <meta name="color-scheme" content="light"><title>LLM Bench — перевір свій комп’ютер</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2319232a'/%3E%3Cpath d='M16 44V20h8v16h24v8z' fill='%23d9ed72'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="LLM Bench, головна"><span class="brand-icon">L<span>↗</span></span> LLM<span class="brand-light">BENCH</span></a>
+  <nav aria-label="Головна навігація"><button class="nav active" data-tab="bench">Тестування</button><button class="nav" data-tab="compare">Порівняння <span id="saved-count">0</span></button><button class="nav" data-tab="method">Методика</button></nav>
+  <a class="source-link" href="https://github.com/GirBP/llm-laptop-bench" target="_blank" rel="noopener">Код ↗</a>
+</header>
+<main>
+<section id="bench" class="view">
+  <div class="hero"><div><div class="eyebrow"><i></i> ЛОКАЛЬНІ МОДЕЛІ. РЕАЛЬНІ ВИМІРЮВАННЯ.</div><h1>На що здатен<br>твій комп’ютер<span class="accent">?</span></h1><p class="lead">Запусти мовну модель просто в браузері.<br>Збережи результат. Повтори на іншому пристрої.</p></div><div class="hero-mark" aria-hidden="true"><div class="orbit"></div><span>CPU</span><b>↗</b><span>GPU</span><small>ВИМІРЯЙ, А НЕ ВГАДУЙ</small></div></div>
+  <div class="device-strip"><div class="device-symbol" aria-hidden="true">▣</div><div class="device-copy"><small>ЦЕЙ БРАУЗЕР</small><strong id="device-name">Перевіряю можливості…</strong><span id="device-detail">WebGPU · WebAssembly</span></div><div class="capabilities"><span class="pill" id="gpu-pill">GPU …</span><span class="pill" id="cpu-pill">CPU …</span></div></div>
+  <div class="workspace">
+    <form id="test-form" class="panel configuration">
+      <div class="section-heading"><span class="step">01</span><h2>Налаштуй тест</h2></div>
+      <label for="device-label">Назва пристрою</label><input id="device-label" maxlength="80" value="Мій комп’ютер" required placeholder="Наприклад, Razer Max-Q або MacBook M2">
+      <label>Режим обчислень</label><div class="segmented" role="group" aria-label="Режим обчислень"><button type="button" id="gpu-mode" class="selected" aria-pressed="true">GPU <small>WebGPU</small></button><button type="button" id="cpu-mode" aria-pressed="false">CPU <small>WebAssembly</small></button></div>
+      <p class="field-help" id="mode-help">GPU через браузер. Назва адаптера — у картці вище.</p>
+      <label for="model-select">Модель</label><select id="model-select"></select><p class="field-help" id="model-info"></p>
+      <div class="form-row"><div><label for="profile">Вхідний текст</label><select id="profile"><option value="short">Короткий</option><option value="long">Довгий</option></select></div><div><label for="run-style">Тривалість</label><select id="run-style"><option value="quick">Швидкий · 3 повтори</option><option value="full">Тривалий · прогрів 20 хв</option></select></div></div>
+      <p class="field-help" id="duration-info">64 нові токени · один запит одночасно. Завантаження моделі вимірюється окремо.</p>
+      <details class="advanced"><summary>Додаткові налаштування</summary><label for="threads">Потоки CPU</label><input type="number" id="threads" min="1" max="16" value="4"><p class="field-help">Використовуються в режимі WASM, коли браузер дозволяє спільну пам’ять.</p><label for="notes">Умови та обладнання</label><textarea id="notes" rows="2" maxlength="1000" placeholder="16 ГБ RAM, GTX 1060 Max-Q; живлення від мережі…"></textarea></details>
+      <button id="start" class="primary" type="submit"><span>Запустити тест</span><span>↗</span></button>
+      <p class="fineprint">Модель завантажиться на цей пристрій. Запити та результати не надсилаються на сервер.</p>
+    </form>
+    <div class="right-column">
+      <section class="panel execution" aria-labelledby="run-heading"><div class="section-heading"><span class="step">02</span><h2 id="run-heading">Спостерігай за результатом</h2><span class="live-badge" id="run-state">ОЧІКУВАННЯ</span></div>
+        <div class="run-intro" id="run-intro"><div class="pulse-icon" aria-hidden="true">⌁</div><h3>Тут з’являться твої цифри</h3><p>Обери модель та запусти тест.<br>Перше завантаження потребує інтернету й часу.</p></div>
+        <div id="run-progress" hidden><div class="progress-title"><strong id="stage-text">Підготовка…</strong><span id="elapsed">0:00</span></div><progress id="progress" max="1"></progress><p class="field-help" id="progress-detail"></p></div>
+        <div class="metrics"><div><span>ГЕНЕРАЦІЯ</span><strong id="tg-value">—</strong><small>токенів / с</small></div><div><span>ОБРОБКА ЗАПИТУ</span><strong id="pp-value">—</strong><small>токенів / с</small></div><div><span>ПЕРШИЙ ТОКЕН</span><strong id="ttft-value">—</strong><small>секунд</small></div></div>
+        <p id="metric-caption" class="field-help">Відображаються лише виміряні значення. Немає синтетичних оцінок.</p>
+        <div class="run-actions"><button type="button" class="secondary" id="stop" disabled>Зупинити</button><button type="button" class="secondary" id="download-current" disabled>Завантажити JSON ↓</button></div>
+        <details id="log-details"><summary>Журнал виконання</summary><pre id="log" aria-live="polite">Готовий до запуску.</pre></details>
+      </section>
+      <aside class="scope-note"><span class="note-icon">i</span><div><strong>Що саме ми порівнюємо</strong><p>Роботу мовних моделей у браузері. WebGPU не є нативним CUDA чи Metal. Для CPU і GPU тут різні рушії та файли ваг: їхні цифри напряму не зіставляються. На двох ПК обирай однаковий тест.</p><button class="text-button" type="button" data-tab="method">Про методику й обмеження ↗</button></div></aside>
+    </div>
+  </div>
+  <section class="how"><div><span>01 / ЗАПУСТИ</span><p>Почни з малої моделі,<br>щоб перевірити сумісність.</p></div><div><span>02 / ЗБЕРЕЖИ</span><p>Завантаж JSON-звіт.<br>Повтори тест на іншому ПК.</p></div><div><span>03 / ПОРІВНЯЙ</span><p>Імпортуй два звіти.<br>Зістав швидкість і затримки.</p></div></section>
+</section>
+<section id="compare" class="view" hidden>
+  <div class="page-heading"><div class="eyebrow">ОДНАКОВИЙ ТЕСТ. ДВА ПРИСТРОЇ.</div><h1>Порівняй результати<span class="accent">.</span></h1><p class="lead">Звіти залишаються в цьому браузері. Для іншого ПК перенеси JSON-файл.</p></div>
+  <div class="import-bar"><label class="secondary file-button">Імпортувати JSON <span>↑</span><input id="import" type="file" accept="application/json,.json" multiple></label><button class="secondary" id="export-all">Усі звіти JSON ↓</button><button class="secondary" id="export-csv">Вимірювання CSV ↓</button><button class="text-button danger" id="clear-reports">Очистити звіти</button></div>
+  <div class="panel"><div class="comparison-controls"><div><label for="left-report">Пристрій A</label><select id="left-report"></select></div><span class="versus">vs</span><div><label for="right-report">Пристрій B</label><select id="right-report"></select></div><div><label for="phase">Серія</label><select id="phase"><option value="early">Початкова</option><option value="hot">Після прогріву</option></select></div></div><div id="comparison-body" class="comparison-empty">Імпортуй звіти або проведи перший тест.</div></div>
+  <div class="section-heading saved-heading"><h2>Збережені запуски</h2></div><div class="table-wrap"><table><thead><tr><th>Пристрій</th><th>Модель / режим</th><th>Профіль</th><th>Статус</th><th>Генерація</th><th></th></tr></thead><tbody id="report-rows"></tbody></table></div>
+</section>
+<section id="method" class="view" hidden>
+  <div class="page-heading"><div class="eyebrow">ПРОЗОРИЙ ПРОТОКОЛ</div><h1>Вимірювання з контекстом<span class="accent">.</span></h1><p class="lead">Цифри корисні, коли зрозуміло, звідки вони взялися.</p></div>
+  <div class="method-grid">
+    <article class="panel"><h2>Що запускається</h2><p>GPU: WebLLM 0.2.86, WebGPU, Qwen2.5 0.5B / 3B / 7B у q4f32_1. Ваги квантуються до 4 біт, обчислення використовують FP32. Службова робота CPU залишається.</p><p>CPU: Transformers.js 4.3.1, ONNX Runtime Web, WASM, SmolLM2 135M / Qwen2.5 0.5B у q4. Це інші файли й інша реалізація квантування.</p><p>Ревізії моделей і бібліотек зафіксовані. 14B, MoE та ручний поділ шарів між CPU/GPU у цьому браузерному протоколі не реалізовані.</p></article>
+    <article class="panel"><h2>Як рахується швидкість</h2><p>WebGPU: PP, TG і час до першого токена — вимірювання WebLLM. WASM: PP — токени запиту / час першого виклику forward; TG — швидкість між першим та останнім новим токеном; TTFT — час до першого нового токена.</p><p>Перший службовий запит не входить до статистики. Кожен повтор починається з нового KV-кешу. Температура 0, один запит, batch 1, фіксована довжина відповіді.</p><p>Тексти «короткий» і «довгий» незмінні; точна кількість токенів залежить від токенізатора й зберігається у звіті. Контекст GPU: 2048 / 8192. У WASM записана межа тесту, пам’ять KV зростає з фактичним текстом.</p></article>
+    <article class="panel"><h2>Прогрів і повтори</h2><p>Швидкий: 3 повтори, 64 нові токени. Тривалий: 5 початкових повторів, не менше 20 хвилин повторних запитів, 5 фінальних повторів по 128 токенів.</p><p>20 хвилин — протокол, а не доказ теплової рівноваги. Після службового запуску початкова серія вже не є холодним стартом. Завантаження й компіляція вимірюються окремо.</p><p>Тримай вкладку видимою. При переході у фон поточний вимір позначається невалідним. Підключи живлення, закрий зайві програми й повторюй однакові умови.</p></article>
+    <article class="panel"><h2>Чого браузер не знає</h2><p>Немає надійних показників використання RAM/VRAM, системного swap, температури, потужності чи тротлінгу. Обсяг navigator.deviceMemory округлений і обмежений браузером; він не є точним обсягом встановленої RAM.</p><p>WebGPU може бути вимкнений драйвером або політикою браузера. На Razer перевір назву адаптера: браузер може обрати Intel замість NVIDIA. Програмний адаптер не є тестом фізичної GPU.</p><p>Невдача браузерного запуску не доводить, що та сама модель не працюватиме в llama.cpp. CPU WASM також не вимірює максимум нативного CPU. Без ізоляції вкладки WASM працює з одним потоком.</p></article>
+  </div>
+  <div class="panel privacy"><h2>Локальність і джерела</h2><p>GitHub Pages віддає статичний сайт. Моделі завантажуються з Hugging Face, обчислення відбуваються на твоєму пристрої. Аналітики й серверного збереження звітів немає. Кеш моделей залишається у сховищі браузера.</p><p>Service Worker додає заголовки ізоляції для CPU-потоків; він не встановлює програм і не кешує звіти. Якщо браузер не підтримує ізоляцію, фактична кількість потоків зазначається окремо.</p><div class="source-links"><a href="https://webllm.mlc.ai/docs/" target="_blank" rel="noopener">WebLLM ↗</a><a href="https://huggingface.co/docs/transformers.js/" target="_blank" rel="noopener">Transformers.js ↗</a><a href="https://onnxruntime.ai/docs/tutorials/web/large-models.html" target="_blank" rel="noopener">Обмеження браузерної пам’яті ↗</a><a href="./models.json" target="_blank" rel="noopener">Точні моделі та ревізії ↗</a></div></div>
+</section>
+</main>
+<footer><span>LLM BENCH <span class="muted">/ Browser edition</span></span><span>Без встановлення. Без вигаданих результатів.</span></footer>
+<div id="toast" role="status" hidden></div>
+<noscript>Для браузерного тестування потрібно увімкнути JavaScript.</noscript>
+</body></html>
